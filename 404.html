@@ -1,78 +1,61 @@
 <!DOCTYPE html>
-<html>
-  <head>
-    <meta charset="utf-8" />
-    <title>Redirecting...</title>
-    <script>
-      /**
-       * Configuration goes here
-       */
-      // Format: https://api.github.com/repos/{owner}/{repo}/issues/
-      var GITHUB_ISSUES_LINK =
-        "https://api.github.com/repos/nelsontky/gh-pages-url-shortener-db/issues/";
-      var PATH_SEGMENTS_TO_SKIP = 0;
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Redirecting...</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+</head>
+<body>
+  <script>
+    // 自定义域名下没有多余 path 段，例如 https://map.v2.avantek.ca/123
+    var PATH_SEGMENTS_TO_SKIP = 0;
 
-      /**
-       * DO NOT TOUCH ANYTHING BELOW THIS COMMENT UNLESS YOU KNOW WHAT YOU ARE DOING
-       */
-      function isUrl(url) {
-        // Regex from https://stackoverflow.com/a/3809435, with a modification to allow for TLDs of up to 24 characters
-        return /^https?:\/\/(www\.)?[-a-zA-Z0-9@:%._\+~#=]{2,256}\.[a-z]{2,24}\b([-a-zA-Z0-9@:%_\+.~#?&//=]*)+$/.test(
-          url
-        );
+    // 你的 issues 仓库，用来当作“数据库”
+    // 注意最后必须有斜杠 /
+    var GITHUB_ISSUES_LINK = "https://api.github.com/repos/Leo7466/van-url/issues/";
+
+    function getIssueNumberFromPath() {
+      var pathSegments = window.location.pathname.split("/").filter(Boolean);
+      // 跳过前面的路径段（自定义域名为 0）
+      var index = PATH_SEGMENTS_TO_SKIP;
+      if (index >= pathSegments.length) {
+        return null;
+      }
+      return pathSegments[index];
+    }
+
+    function redirect() {
+      var issueNumber = getIssueNumberFromPath();
+      if (!issueNumber) {
+        document.body.innerText = "No short URL id found in path.";
+        return;
       }
 
-      function redirect() {
-        var location = window.location;
-        var issueNumber = location.pathname.split("/")[
-          PATH_SEGMENTS_TO_SKIP + 1
-        ];
-        var homepage =
-          location.protocol +
-          "//" +
-          location.hostname +
-          (location.port ? ":" + location.port : "") +
-          "/" +
-          location.pathname.split("/")[PATH_SEGMENTS_TO_SKIP];
-
-        var xhr = new XMLHttpRequest();
-
-        xhr.onload = function () {
-          try {
-            var payload = JSON.parse(xhr.response);
-            var message = payload.message;
-            var title = payload.title;
-
-            // Workaround IE 11 lack of support for new URL()
-            var url = document.createElement("a");
-            url.setAttribute("href", title);
-
-            // Invalid URLs includes invalid issue numbers, issue titles that are not URLs, and recursive destination URLs
-            var isInvalidUrl =
-              message === "Not Found" ||
-              !title ||
-              !isUrl(title) ||
-              url.hostname === location.hostname;
-
-            if (isInvalidUrl) {
-              location.replace(homepage);
-            } else {
-              location.replace(title);
+      var xhr = new XMLHttpRequest();
+      xhr.open("GET", GITHUB_ISSUES_LINK + issueNumber, true);
+      xhr.onreadystatechange = function () {
+        if (xhr.readyState === 4) {
+          if (xhr.status === 200) {
+            try {
+              var issue = JSON.parse(xhr.responseText);
+              var target = issue.title;
+              if (target && /^https?:\/\//i.test(target)) {
+                window.location.href = target;
+              } else {
+                document.body.innerText = "Issue title is not a valid URL.";
+              }
+            } catch (e) {
+              document.body.innerText = "Failed to parse issue data.";
             }
-          } catch (e) {
-            location.replace(homepage);
+          } else {
+            document.body.innerText = "Short URL not found (" + xhr.status + ").";
           }
-        };
+        }
+      };
+      xhr.send();
+    }
 
-        xhr.onerror = function () {
-          location.replace(homepage);
-        };
-        xhr.open("GET", GITHUB_ISSUES_LINK + issueNumber);
-        xhr.send();
-      }
-
-      redirect();
-    </script>
-  </head>
-  <body></body>
+    redirect();
+  </script>
+</body>
 </html>
